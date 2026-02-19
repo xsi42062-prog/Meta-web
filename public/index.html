@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>oPons 前端站点</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body class="bg-slate-950 text-white min-h-screen p-6">
+    <div class="max-w-3xl mx-auto space-y-6">
+      <header class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-slate-400">oPons.it.com</p>
+          <h1 class="text-2xl font-bold">交易前端演示站</h1>
+        </div>
+        <a href="/admin" class="text-sm bg-slate-800 border border-slate-700 px-3 py-2 rounded-lg hover:bg-slate-700">管理后台</a>
+      </header>
+
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <p class="text-slate-400 text-xs uppercase">Total Assets (USDT)</p>
+        <h2 id="balance" class="text-4xl font-bold mt-1">--</h2>
+        <p id="profile-status" class="text-sm mt-2 text-slate-400">加载中...</p>
+        <div class="grid grid-cols-2 gap-4 mt-6">
+          <button class="bg-yellow-500 text-black py-3 rounded-xl font-bold">Withdraw</button>
+          <button class="bg-slate-700 py-3 rounded-xl font-bold border border-slate-600">Deposit</button>
+        </div>
+      </section>
+
+      <section>
+        <h3 class="text-slate-300 font-semibold mb-3">实时行情</h3>
+        <div id="market-list" class="space-y-3"></div>
+      </section>
+    </div>
+
+    <script>
+      const uid = '1001';
+      const socket = io();
+
+      function currency(value) {
+        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+      }
+
+      async function loadProfile() {
+        const resp = await fetch(`/api/profile/${uid}`);
+        const profile = await resp.json();
+
+        document.getElementById('balance').textContent = currency(profile.balance);
+
+        const statusEl = document.getElementById('profile-status');
+        if (profile.isFrozen) {
+          statusEl.textContent = '账户状态：已冻结';
+          statusEl.className = 'text-sm mt-2 text-red-400';
+        } else {
+          statusEl.textContent = `账户状态：正常（用户 ${profile.username}）`;
+          statusEl.className = 'text-sm mt-2 text-emerald-400';
+        }
+      }
+
+      async function loadMarkets() {
+        const resp = await fetch('/api/markets');
+        const markets = await resp.json();
+        const html = markets
+          .map(
+            (m) => `
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center">
+              <div>
+                <p class="font-semibold">${m.symbol}</p>
+                <p class="text-xs text-slate-500">${m.name}</p>
+              </div>
+              <div class="text-right">
+                <p class="font-semibold">${currency(m.price)}</p>
+                <p class="text-xs ${m.change >= 0 ? 'text-emerald-400' : 'text-red-400'}">${m.change >= 0 ? '+' : ''}${m.change}%</p>
+              </div>
+            </div>
+          `
+          )
+          .join('');
+        document.getElementById('market-list').innerHTML = html;
+      }
+
+      socket.on(`freeze_status_${uid}`, (data) => {
+        if (data.isFrozen) {
+          document.body.innerHTML = '<div class="fixed inset-0 bg-black flex items-center justify-center p-8 text-center"><h1 class="text-red-500 text-2xl font-bold">ACCOUNT FROZEN</h1></div>';
+        } else {
+          loadProfile();
+        }
+      });
+
+      loadProfile();
+      loadMarkets();
+    </script>
+  </body>
+</html>
